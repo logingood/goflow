@@ -11,6 +11,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/kinesis"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis/types"
 	flowmessage "github.com/cloudflare/goflow/v3/pb"
+	log "github.com/sirupsen/logrus"
 )
 
 type KinesisClient struct {
@@ -31,7 +32,7 @@ func (k *KinesisClient) Publish(messages []*flowmessage.FlowMessage) {
 	for _, msg := range messages {
 		data, err := json.Marshal(msg)
 		if err != nil {
-			fmt.Println(err.Error())
+			log.Error(err)
 			continue
 		}
 
@@ -47,10 +48,13 @@ func (k *KinesisClient) Publish(messages []*flowmessage.FlowMessage) {
 	}
 
 	for i := 0; i < min(500, len(records)); i += 499 {
-		k.kinesisAPI.PutRecords(context.TODO(), &kinesis.PutRecordsInput{
+		// TODO handle errors correctly
+		if _, err := k.kinesisAPI.PutRecords(context.TODO(), &kinesis.PutRecordsInput{
 			Records:    records,
 			StreamName: aws.String(k.streamName),
-		})
+		}); err != nil {
+			log.Error(err)
+		}
 	}
 
 	return
