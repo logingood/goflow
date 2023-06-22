@@ -1,14 +1,18 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
+	"goflow/transport"
 	"net/http"
 	"os"
 	"runtime"
 	"sync"
 
-	"github.com/cloudflare/goflow/v3/transport"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/kinesis"
+	"github.com/cloudflare/goflow/transport"
 	"github.com/cloudflare/goflow/v3/utils"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
@@ -38,10 +42,11 @@ var (
 	LogLevel = flag.String("loglevel", "info", "Log level")
 	LogFmt   = flag.String("logfmt", "normal", "Log formatter")
 
-	EnableKafka = flag.Bool("kafka", true, "Enable Kafka")
-	FixedLength = flag.Bool("proto.fixedlen", false, "Enable fixed length protobuf")
-	MetricsAddr = flag.String("metrics.addr", ":8080", "Metrics address")
-	MetricsPath = flag.String("metrics.path", "/metrics", "Metrics path")
+	EnableKafka   = flag.Bool("kafka", true, "Enable Kafka")
+	EnableKinesis = flag.Bool("kinesis", true, "Enable Kinesis")
+	FixedLength   = flag.Bool("proto.fixedlen", false, "Enable fixed length protobuf")
+	MetricsAddr   = flag.String("metrics.addr", ":8080", "Metrics address")
+	MetricsPath   = flag.String("metrics.path", "/metrics", "Metrics path")
 
 	TemplatePath = flag.String("templates.path", "/templates", "NetFlow/IPFIX templates list")
 
@@ -107,6 +112,17 @@ func main() {
 		sSFlow.Transport = kafkaState
 		sNFL.Transport = kafkaState
 		sNF.Transport = kafkaState
+	} else if *EnableKinesis {
+		cfg, err := config.LoadDefaultConfig(context.TODO(), config.WithRegion("ap-southeast-2"))
+		if err != nil {
+			log.Fatalf("unable to load SDK config, %v", err)
+		}
+
+		svc := kinesis.NewFromConfig(cfg)
+		kinesiClient := transport.NewKinesisClient(svc, os.Getenv("STREAM_NAME"))
+		sSFlow.Transport = kinesiClient
+		sNFL.Transport = kinesiClient
+		sNF.Transport = kinesiClient
 	}
 
 	wg := &sync.WaitGroup{}

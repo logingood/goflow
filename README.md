@@ -1,3 +1,8 @@
+# This fork
+
+Added kinesis client to send flow records to Kinesis instead of Kafka. The
+stream name comes from the env variable because we run it in the container.
+
 # GoFlow
 
 This application is a NetFlow/IPFIX/sFlow collector in Go.
@@ -21,7 +26,7 @@ which contains the fields a network engineer is interested in.
 The flow packets usually contains multiples samples
 This acts as an abstraction of a sample.
 
-The `transport` provides different way of processing the protobuf. Either sending it via Kafka or 
+The `transport` provides different way of processing the protobuf. Either sending it via Kafka or
 print it on the console.
 
 Finally, `utils` provide functions that are directly used by the CLI utils.
@@ -165,7 +170,7 @@ You can find information on how they are populated from the original source:
 |SrcVlan|Source VLAN ID| |From ExtendedSwitch|SRC_VLAN (59)|vlanId (58)|
 |DstVlan|Destination VLAN ID| |From ExtendedSwitch|DST_VLAN (59)|postVlanId (59)|
 |VlanId|802.11q VLAN ID| |Included|SRC_VLAN (59)|postVlanId (59)|
-|IngressVrfID|VRF ID| | | |ingressVRFID (234)| 
+|IngressVrfID|VRF ID| | | |ingressVRFID (234)|
 |EgressVrfID|VRF ID| | | |egressVRFID (235)|
 |IPTos|IP Type of Service|tos|Included|SRC_TOS (5)|ipClassOfService (5)|
 |ForwardingStatus|Forwarding status| | |FORWARDING_STATUS (89)|forwardingStatus (89)|
