@@ -4,7 +4,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"hash/goflow/kinesis_transport"
 	"net/http"
 	"os"
 	"runtime"
@@ -12,6 +11,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis"
+	"github.com/cloudflare/goflow/v3/kinesis_transport"
 	"github.com/cloudflare/goflow/v3/transport"
 	"github.com/cloudflare/goflow/v3/utils"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
