@@ -1,4 +1,4 @@
-package transport
+package kinesis_transport
 
 import (
 	"context"

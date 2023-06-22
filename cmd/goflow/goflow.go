@@ -4,7 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"goflow/transport"
+	"hash/goflow/kinesis_transport"
 	"net/http"
 	"os"
 	"runtime"
@@ -12,10 +12,9 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis"
-	"github.com/cloudflare/goflow/transport"
+	"github.com/cloudflare/goflow/v3/transport"
 	"github.com/cloudflare/goflow/v3/utils"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	log "github.com/sirupsen/logrus"
 )
 
 var (
@@ -119,7 +118,7 @@ func main() {
 		}
 
 		svc := kinesis.NewFromConfig(cfg)
-		kinesiClient := transport.NewKinesisClient(svc, os.Getenv("STREAM_NAME"))
+		kinesiClient := kinesis_transport.NewKinesisClient(svc, os.Getenv("STREAM_NAME"))
 		sSFlow.Transport = kinesiClient
 		sNFL.Transport = kinesiClient
 		sNF.Transport = kinesiClient
