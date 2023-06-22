@@ -42,7 +42,7 @@ var (
 	LogLevel = flag.String("loglevel", "info", "Log level")
 	LogFmt   = flag.String("logfmt", "normal", "Log formatter")
 
-	EnableKafka   = flag.Bool("kafka", true, "Enable Kafka")
+	EnableKafka   = flag.Bool("kafka", false, "Enable Kafka")
 	EnableKinesis = flag.Bool("kinesis", true, "Enable Kinesis")
 	FixedLength   = flag.Bool("proto.fixedlen", false, "Enable fixed length protobuf")
 	MetricsAddr   = flag.String("metrics.addr", ":8080", "Metrics address")
