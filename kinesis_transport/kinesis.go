@@ -27,6 +27,7 @@ func NewKinesisClient(kAPI API, streamName string) *KinesisClient {
 }
 
 func (k *KinesisClient) Publish(messages []*flowmessage.FlowMessage) {
+	log.Info("messages recevied", len(messages))
 
 	records := []types.PutRecordsRequestEntry{}
 	for _, msg := range messages {
@@ -47,7 +48,7 @@ func (k *KinesisClient) Publish(messages []*flowmessage.FlowMessage) {
 
 	}
 
-	for i := 0; i < min(500, len(records)); i += 499 {
+	for i := 0; i < min(500, len(records)); i += 500 {
 		// TODO handle errors correctly
 		if _, err := k.kinesisAPI.PutRecords(context.TODO(), &kinesis.PutRecordsInput{
 			Records:    records,
