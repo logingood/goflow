@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	flushBatchSize = 10000
+	flushBatchSize = 1000
 )
 
 type ClickhouseClient struct {
@@ -27,13 +27,15 @@ func New(conn driver.Conn, queueSize int) *ClickhouseClient {
 }
 
 func (c *ClickhouseClient) Publish(flows []*flowprotob.FlowMessage) {
-	for _, flow := range flows {
-		c.enqueu(flow)
+	for idx, flow := range flows {
+		log.Debug("publish flow", idx, flow.SequenceNum)
+		c.enqueue(flow)
 	}
 	return
 }
 
-func (c *ClickhouseClient) enqueu(flow *flowprotob.FlowMessage) {
+func (c *ClickhouseClient) enqueue(flow *flowprotob.FlowMessage) {
+	log.Debug("enqueue flow ", flow.SequenceNum)
 	c.queue <- flow
 }
 
@@ -41,11 +43,13 @@ func (c *ClickhouseClient) StartQueue(ctx context.Context, errGroup *errgroup.Gr
 	errGroup.Go(func() error {
 		flows := []*flowprotob.FlowMessage{}
 		for j := range c.queue {
+			log.Debug("new job ", j.SequenceNum)
 			flows = append(flows, j)
 			if len(flows) == flushBatchSize {
 				if err := c.insert(flows); err != nil {
 					return err
 				}
+				log.Debug("flush flows ", len(flows))
 				flows = nil
 			}
 			select {
@@ -65,7 +69,7 @@ func (c *ClickhouseClient) insert(flows []*flowprotob.FlowMessage) error {
 		return err
 	}
 
-	log.Info(fmt.Sprintf("about to process  %d", len(flows)))
+	log.Debug(fmt.Sprintf("about to process  %d", len(flows)))
 	for _, flow := range flows {
 		batch.Append(
 			flow.TimeReceived,
@@ -85,7 +89,7 @@ func (c *ClickhouseClient) insert(flows []*flowprotob.FlowMessage) error {
 	if err := batch.Send(); err != nil {
 		return err
 	}
-	log.Info(fmt.Sprintf("sent successfully %d", len(flows)))
+	log.Debug(fmt.Sprintf("sent successfully %d", len(flows)))
 	return nil
 }
 
@@ -107,6 +111,5 @@ func (c *ClickhouseClient) InitDb(ctx context.Context, dbName, tableName string)
 	ORDER BY (time, SrcAddr, SrcPort, DstAddr, DstPort)
 	PARTITION BY DstAddr
 	SAMPLE BY SrcAddr`, dbName, tableName)
-	log.Info(stm)
 	return c.conn.Exec(ctx, stm)
 }

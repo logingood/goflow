@@ -68,6 +68,9 @@ func httpServer(state *utils.StateNetFlow) {
 }
 
 func main() {
+
+	ctx := context.Background()
+	g, gctx := errgroup.WithContext(ctx)
 	flag.Parse()
 
 	if *Version {
@@ -139,6 +142,9 @@ func main() {
 				Username: os.Getenv("CLICKHOUSE_USERNAME"),
 				Password: os.Getenv("CLICKHOUSE_PASSWORD"),
 			},
+			Compression: &clickhouse.Compression{
+				Method: clickhouse.CompressionLZ4,
+			},
 		},
 		)
 		if err != nil {
@@ -146,19 +152,15 @@ func main() {
 		}
 
 		clickHouseClient := clickhouse_transport.New(conn, 10001)
-		ctx := context.Background()
-		g, gctx := errgroup.WithContext(ctx)
 		if err := clickHouseClient.InitDb(ctx, os.Getenv("CLICKHOUSE_DB"), os.Getenv("CLICKHOUSE_TABLENAME")); err != nil {
 			log.Fatal(err)
 		}
+		log.Info("starting queue")
 		clickHouseClient.StartQueue(gctx, g)
+		log.Info("queue started")
 		sSFlow.Transport = clickHouseClient
 		sNFL.Transport = clickHouseClient
 		sNF.Transport = clickHouseClient
-
-		if err := g.Wait(); err != nil {
-			log.Fatal(err)
-		}
 	}
 
 	wg := &sync.WaitGroup{}
@@ -205,4 +207,8 @@ func main() {
 		}()
 	}
 	wg.Wait()
+
+	if err := g.Wait(); err != nil {
+		log.Fatal(err)
+	}
 }
