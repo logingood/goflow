@@ -9,13 +9,16 @@ import (
 	"runtime"
 	"sync"
 
+	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis"
+	"github.com/cloudflare/goflow/v3/clickhouse_transport"
 	"github.com/cloudflare/goflow/v3/kinesis_transport"
 	"github.com/cloudflare/goflow/v3/transport"
 	"github.com/cloudflare/goflow/v3/utils"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/sync/errgroup"
 )
 
 var (
@@ -40,13 +43,14 @@ var (
 
 	Workers  = flag.Int("workers", 1, "Number of workers per collector")
 	LogLevel = flag.String("loglevel", "info", "Log level")
-	LogFmt   = flag.String("logfmt", "normal", "Log formatter")
+	LogFmt   = flag.String("logfmt", "json", "Log formatter")
 
-	EnableKafka   = flag.Bool("kafka", false, "Enable Kafka")
-	EnableKinesis = flag.Bool("kinesis", true, "Enable Kinesis")
-	FixedLength   = flag.Bool("proto.fixedlen", false, "Enable fixed length protobuf")
-	MetricsAddr   = flag.String("metrics.addr", ":8080", "Metrics address")
-	MetricsPath   = flag.String("metrics.path", "/metrics", "Metrics path")
+	EnableKafka      = flag.Bool("kafka", false, "Enable Kafka")
+	EnableKinesis    = flag.Bool("kinesis", false, "Enable Kinesis")
+	EnableClickhouse = flag.Bool("clickhouse", true, "Enable Clickhouse")
+	FixedLength      = flag.Bool("proto.fixedlen", false, "Enable fixed length protobuf")
+	MetricsAddr      = flag.String("metrics.addr", ":8080", "Metrics address")
+	MetricsPath      = flag.String("metrics.path", "/metrics", "Metrics path")
 
 	TemplatePath = flag.String("templates.path", "/templates", "NetFlow/IPFIX templates list")
 
@@ -102,6 +106,7 @@ func main() {
 
 	go httpServer(sNF)
 
+	log.Info("starting up..")
 	if *EnableKafka {
 		kafkaState, err := transport.StartKafkaProducerFromArgs(log.StandardLogger())
 		if err != nil {
@@ -113,6 +118,7 @@ func main() {
 		sNFL.Transport = kafkaState
 		sNF.Transport = kafkaState
 	} else if *EnableKinesis {
+		log.Info("kinesis enabled")
 		cfg, err := config.LoadDefaultConfig(context.TODO(), config.WithRegion("ap-southeast-2"))
 		if err != nil {
 			log.Fatalf("unable to load SDK config, %v", err)
@@ -123,6 +129,36 @@ func main() {
 		sSFlow.Transport = kinesiClient
 		sNFL.Transport = kinesiClient
 		sNF.Transport = kinesiClient
+	} else if *EnableClickhouse {
+		log.Info("clickhouse enabled")
+
+		conn, err := clickhouse.Open(&clickhouse.Options{
+			Addr: []string{fmt.Sprintf("%s:%s", os.Getenv("CLICKHOUSE_ADDR"), os.Getenv("CLICKHOUSE_PORT"))},
+			Auth: clickhouse.Auth{
+				Database: os.Getenv("CLICKHOUSE_DB"),
+				Username: os.Getenv("CLICKHOUSE_USERNAME"),
+				Password: os.Getenv("CLICKHOUSE_PASSWORD"),
+			},
+		},
+		)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		clickHouseClient := clickhouse_transport.New(conn, 10001)
+		ctx := context.Background()
+		g, gctx := errgroup.WithContext(ctx)
+		if err := clickHouseClient.InitDb(ctx, os.Getenv("CLICKHOUSE_DB"), os.Getenv("CLICKHOUSE_TABLENAME")); err != nil {
+			log.Fatal(err)
+		}
+		clickHouseClient.StartQueue(gctx, g)
+		sSFlow.Transport = clickHouseClient
+		sNFL.Transport = clickHouseClient
+		sNF.Transport = clickHouseClient
+
+		if err := g.Wait(); err != nil {
+			log.Fatal(err)
+		}
 	}
 
 	wg := &sync.WaitGroup{}
