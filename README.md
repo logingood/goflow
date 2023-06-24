@@ -1,7 +1,57 @@
 # This fork
 
-Added kinesis client to send flow records to Kinesis instead of Kafka. The
+* Added clickhouse transport based on
+  [goflow-clickhouse](https://github.com/h4sh5/goflow-clickhouse). We changed
+  the schema and now it is more performant. We don't really need to partition by
+  source ip addresses especially if you have many ip addresses in the network.
+
+  Ordering by time or `tuple()` works great with merge tree. Please refer to official [clickhouse docs](https://clickhouse.com/blog/working-with-time-series-data-and-functions-ClickHouse#date-and-time-types-available-in-clickhouse).
+
+
+  The fork will crate a schema for you, ClickHouseClient has InitDb method.
+
+```sql
+	CREATE TABLE IF NOT EXISTS netflow (
+	    time UInt64,
+	    Bytes UInt64,
+	    Etype UInt32,
+	    Packets UInt64,
+	    SrcAddr UInt32,
+	    DstAddr UInt32,
+	    SrcPort UInt32,
+	    DstPort UInt32,
+	    Proto UInt32,
+	    SrcAs UInt32,
+	    DstAs UInt32
+	)
+	ENGINE = MergeTree
+	ORDER BY tuple()
+```
+
+Running the fork for clickhouse (enabled by default):
+
+1. Set the environment variables (check .envrc in cmd/goflow/)
+
+```
+export CLICKHOUSE_DB="default"
+export CLICKHOUSE_TABLENAME="netflow"
+export CLICKHOUSE_USERNAME="default"
+export CLICKHOUSE_PASSWORD="foobar"
+export CLICKHOUSE_ADDR="1.2.3.4"
+export CLICKHOUSE_PORT="9000"
+```
+
+2. `cd cmd/goflow && go run .`
+
+We run in the container on kubernetes with udp load balancer, so environment
+variables are more convinient than setting flags.
+
+
+For the sake of experiment I've added a Kinesis Transport too but we didn't need as can load directly in clickhouse using a small worker queue in memory.
+
+* Added kinesis client to send flow records to Kinesis instead of Kafka. The
 stream name comes from the env variable because we run it in the container.
+
 
 # GoFlow
 
