@@ -8,21 +8,76 @@
   Ordering by time or `tuple()` works great with merge tree. Please refer to official [clickhouse docs](https://clickhouse.com/blog/working-with-time-series-data-and-functions-ClickHouse#date-and-time-types-available-in-clickhouse).
 
 
-  The fork will crate a schema for you, ClickHouseClient has InitDb method.
+* IPv4 vs IPv6. We decided to store all ip address types as IPv6 in Clickhouse, it makes []byte conversions
+easier with [Clickhouse's type coverter](https://github.com/ClickHouse/clickhouse-go/blob/main/lib/column/ipv6.go).
+The address will look like 'ffff::192.168.0.1', however it is possible to get ipv4 string with the following
+query `SELECT replaceOne(IPv6NumToString(SrcAddr), '::ffff:', '')`
+
+The fork will crate a schema for you, ClickHouseClient has InitDb method.
 
 ```sql
 	CREATE TABLE IF NOT EXISTS netflow (
-	    time UInt64,
-	    Bytes UInt64,
-	    Etype UInt32,
-	    Packets UInt64,
-	    SrcAddr UInt32,
-	    DstAddr UInt32,
-	    SrcPort UInt32,
-	    DstPort UInt32,
-	    Proto UInt32,
-	    SrcAs UInt32,
-	    DstAs UInt32
+        time UInt64,
+        SequenceNum UInt32,
+        SamplingRate UInt64,
+        FlowDirection UInt32,
+        Router IPv6,
+        TimeFlowStart UInt64,
+        TimeFlowEnd UInt64,
+        Bytes UInt64,
+        Packets UInt64,
+        SrcAddr IPv6,
+        DstAddr IPv6,
+        Etype UInt32,
+        Proto UInt32,
+        SrcPort UInt32,
+        DstPort UInt32,
+        InIf UInt32,
+        OutIf UInt32,
+        SrcMac UInt64,
+        DstMac UInt64,
+        SrcVlan UInt32,
+        DstVlan UInt32,
+        VlanId UInt32,
+        IngressVrfID UInt32,
+        EgressVrfID UInt32,
+        IPTos UInt32,
+        ForwardingStatus UInt32,
+        IPTTL UInt32,
+        TCPFlags UInt32,
+        IcmpType UInt32,
+        IcmpCode UInt32,
+        IPv6FlowLabel UInt32,
+        FragmentId UInt32,
+        FragmentOffset UInt32,
+        BiFlowDirection UInt32,
+        SrcAS UInt32,
+        DstAS UInt32,
+        NextHop IPv6,
+        NextHopAS UInt32,
+        SrcNet UInt32,
+        DstNet UInt32,
+        HasEncap Bool,
+        ProtoEncap UInt32,
+        EtypeEncap UInt32,
+        IPTosEncap UInt32,
+        IPTTLEncap UInt32,
+        IPv6FlowLabelEncap UInt32,
+        FragmentIdEncap UInt32,
+        FragmentOffsetEncap UInt32,
+        HasMPLS Bool,
+        MPLSCount UInt32,
+        MPLS1TTL UInt32,
+        MPLS1Label UInt32,
+        MPLS2TTL UInt32,
+        MPLS2Label UInt32,
+        MPLS3TTL UInt32,
+        MPLS3Label UInt32,
+        MPLSLastTTL UInt32,
+        MPLSLastLabel UInt32,
+        HasPPP Bool
+        )
+
 	)
 	ENGINE = MergeTree
 	ORDER BY tuple()
