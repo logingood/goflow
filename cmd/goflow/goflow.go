@@ -135,10 +135,13 @@ func main() {
 	} else if *EnableClickhouse {
 		log.Info("clickhouse enabled")
 
+		dbName := os.Getenv("CLICKHOUSE_DB")
+		tableName := os.Getenv("CLICKHOUSE_TABLENAME")
+
 		conn, err := clickhouse.Open(&clickhouse.Options{
 			Addr: []string{fmt.Sprintf("%s:%s", os.Getenv("CLICKHOUSE_ADDR"), os.Getenv("CLICKHOUSE_PORT"))},
 			Auth: clickhouse.Auth{
-				Database: os.Getenv("CLICKHOUSE_DB"),
+				Database: dbName,
 				Username: os.Getenv("CLICKHOUSE_USERNAME"),
 				Password: os.Getenv("CLICKHOUSE_PASSWORD"),
 			},
@@ -151,8 +154,8 @@ func main() {
 			log.Fatal(err)
 		}
 
-		clickHouseClient := clickhouse_transport.New(conn, 10001)
-		if err := clickHouseClient.InitDb(ctx, os.Getenv("CLICKHOUSE_DB"), os.Getenv("CLICKHOUSE_TABLENAME")); err != nil {
+		clickHouseClient := clickhouse_transport.New(conn, 10001, dbName, tableName)
+		if err := clickHouseClient.InitDb(ctx); err != nil {
 			log.Fatal(err)
 		}
 		log.Info("starting queue")

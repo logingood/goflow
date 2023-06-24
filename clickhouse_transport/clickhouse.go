@@ -15,14 +15,18 @@ const (
 )
 
 type ClickhouseClient struct {
-	conn  driver.Conn
-	queue chan *flowprotob.FlowMessage
+	dbName    string
+	tableName string
+	conn      driver.Conn
+	queue     chan *flowprotob.FlowMessage
 }
 
-func New(conn driver.Conn, queueSize int) *ClickhouseClient {
+func New(conn driver.Conn, queueSize int, dbName, tableName string) *ClickhouseClient {
 	return &ClickhouseClient{
-		conn:  conn,
-		queue: make(chan *flowprotob.FlowMessage, queueSize),
+		conn:      conn,
+		queue:     make(chan *flowprotob.FlowMessage, queueSize),
+		dbName:    dbName,
+		tableName: tableName,
 	}
 }
 
@@ -47,7 +51,8 @@ func (c *ClickhouseClient) StartQueue(ctx context.Context, errGroup *errgroup.Gr
 			flows = append(flows, j)
 			if len(flows) == flushBatchSize {
 				if err := c.insert(flows); err != nil {
-					return err
+					log.Error(err)
+					//return err
 				}
 				log.Debug("flush flows ", len(flows))
 				flows = nil
@@ -64,7 +69,7 @@ func (c *ClickhouseClient) StartQueue(ctx context.Context, errGroup *errgroup.Gr
 }
 
 func (c *ClickhouseClient) insert(flows []*flowprotob.FlowMessage) error {
-	batch, err := c.conn.PrepareBatch(context.Background(), "INSERT INTO deafult.nflow")
+	batch, err := c.conn.PrepareBatch(context.Background(), fmt.Sprintf("INSERT INTO %s.%s", c.dbName, c.tableName))
 	if err != nil {
 		return err
 	}
@@ -93,7 +98,7 @@ func (c *ClickhouseClient) insert(flows []*flowprotob.FlowMessage) error {
 	return nil
 }
 
-func (c *ClickhouseClient) InitDb(ctx context.Context, dbName, tableName string) error {
+func (c *ClickhouseClient) InitDb(ctx context.Context) error {
 	stm := fmt.Sprintf(`
 	CREATE TABLE IF NOT EXISTS %s.%s (
 	    time UInt32,
@@ -110,6 +115,6 @@ func (c *ClickhouseClient) InitDb(ctx context.Context, dbName, tableName string)
 	) ENGINE = MergeTree()
 	ORDER BY (time, SrcAddr, SrcPort, DstAddr, DstPort)
 	PARTITION BY DstAddr
-	SAMPLE BY SrcAddr`, dbName, tableName)
+	SAMPLE BY SrcAddr`, c.dbName, c.tableName)
 	return c.conn.Exec(ctx, stm)
 }
