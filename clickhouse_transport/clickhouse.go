@@ -3,7 +3,6 @@ package clickhouse_transport
 import (
 	"context"
 	"fmt"
-	"math/big"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	flowprotob "github.com/cloudflare/goflow/v3/pb"
@@ -78,18 +77,38 @@ func (c *ClickhouseClient) insert(flows []*flowprotob.FlowMessage) error {
 	log.Debug(fmt.Sprintf("about to process  %d", len(flows)))
 	for _, flow := range flows {
 
+		// CGNAT records do not have destiantion address or nextHop. IPv6 type conversion for clickhouse
+		// doesn't check the length of the []byte slice and tries to go for at least 4 bytes.
+		srcAddr := flow.GetSrcAddr()
+		if len(srcAddr) == 0 {
+			srcAddr = []byte{0, 0, 0, 0}
+		}
+		dstAddr := flow.GetDstAddr()
+		if len(dstAddr) == 0 {
+			dstAddr = []byte{0, 0, 0, 0}
+		}
+		nextHop := flow.GetNextHop()
+		if len(nextHop) == 0 {
+			nextHop = []byte{0, 0, 0, 0}
+		}
+
+		router := flow.GetSamplerAddress()
+		if len(router) == 0 {
+			router = append(router, 0)
+		}
+
 		batch.Append(
 			flow.GetTimeReceived(),
 			flow.GetSequenceNum(),
 			flow.GetSamplingRate(),
 			flow.GetFlowDirection(),
-			ip2Int(flow.GetSamplerAddress()),
+			router,
 			flow.GetTimeFlowStart(),
 			flow.GetTimeFlowEnd(),
 			flow.GetBytes(),
 			flow.GetPackets(),
-			ip2Int(flow.GetSrcAddr()),
-			ip2Int(flow.GetDstAddr()),
+			srcAddr,
+			dstAddr,
 			flow.GetEtype(),
 			flow.GetProto(),
 			flow.GetSrcPort(),
@@ -115,13 +134,11 @@ func (c *ClickhouseClient) insert(flows []*flowprotob.FlowMessage) error {
 			flow.GetBiFlowDirection(),
 			flow.GetSrcAS(),
 			flow.GetDstAS(),
-			ip2Int(flow.GetNextHop()),
+			nextHop,
 			flow.GetNextHopAS(),
 			flow.GetSrcNet(),
 			flow.GetDstNet(),
 			flow.GetHasEncap(),
-			ip2Int(flow.GetSrcAddrEncap()),
-			ip2Int(flow.GetDstAddrEncap()),
 			flow.GetProtoEncap(),
 			flow.GetEtypeEncap(),
 			flow.GetIPTosEncap(),
@@ -149,6 +166,11 @@ func (c *ClickhouseClient) insert(flows []*flowprotob.FlowMessage) error {
 	return nil
 }
 
+// To keep the schema universal between ipv6 and ipv4, we suggest to use Ipv6 for everything.
+// you can extract ipv4 address using `replaceOne(IPv6NumToString(ip), '::ffff:', ”)`
+// a standard function might appear some time in future.
+// https://github.com/ClickHouse/ClickHouse/issues/20469
+
 func (c *ClickhouseClient) InitDb(ctx context.Context) error {
 	stm := fmt.Sprintf(`
 	CREATE TABLE IF NOT EXISTS %s.%s (
@@ -156,13 +178,13 @@ func (c *ClickhouseClient) InitDb(ctx context.Context) error {
 			SequenceNum UInt32,
 			SamplingRate UInt64,
 			FlowDirection UInt32,
-			Router UInt128,
+			Router IPv6,
 			TimeFlowStart UInt64,
 			TimeFlowEnd UInt64,
 			Bytes UInt64,
 			Packets UInt64,
-			SrcAddr UInt128,
-			DstAddr UInt128,
+			SrcAddr IPv6,
+			DstAddr IPv6,
 			Etype UInt32,
 			Proto UInt32,
 			SrcPort UInt32,
@@ -188,13 +210,11 @@ func (c *ClickhouseClient) InitDb(ctx context.Context) error {
 			BiFlowDirection UInt32,
 			SrcAS UInt32,
 			DstAS UInt32,
-			NextHop UInt128,
+			NextHop IPv6,
 			NextHopAS UInt32,
 			SrcNet UInt32,
 			DstNet UInt32,
 			HasEncap Bool,
-			SrcAddrEncap UInt128,
-			DstAddrEncap UInt128,
 			ProtoEncap UInt32,
 			EtypeEncap UInt32,
 			IPTosEncap UInt32,
@@ -218,10 +238,4 @@ func (c *ClickhouseClient) InitDb(ctx context.Context) error {
 	ORDER BY tuple()`,
 		c.dbName, c.tableName)
 	return c.conn.Exec(ctx, stm)
-}
-
-func ip2Int(b []byte) *big.Int {
-	i := big.NewInt(0)
-	i.SetBytes(b)
-	return i
 }
