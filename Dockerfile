@@ -3,8 +3,12 @@ ARG LDFLAGS=""
 
 RUN apk --update --no-cache add git build-base gcc
 
-COPY . /build
 WORKDIR /build
+COPY go.mod /build
+COPY go.sum /build
+RUN go mod download
+
+COPY . /build
 
 RUN go build -ldflags "${LDFLAGS}" -o goflow cmd/goflow/goflow.go
 
