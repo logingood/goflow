@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	flushBatchSize = 1000
+	flushBatchSize = 10000
 )
 
 type ClickhouseClient struct {
@@ -76,17 +76,25 @@ func (c *ClickhouseClient) insert(flows []*flowprotob.FlowMessage) error {
 
 	log.Debug(fmt.Sprintf("about to process  %d", len(flows)))
 	for _, flow := range flows {
+		srcAddr := flow.GetSrcAddr()
+		dstAddr := flow.GetDstAddr()
+
+		if len(srcAddr) != 4 || len(dstAddr) != 4 {
+			// bad records, like CGNAT
+			log.Debug("strange flow", flow)
+			continue
+		}
+
 		batch.Append(
 			flow.TimeReceived,
 			flow.Bytes,
 			flow.GetEtype(),
 			flow.Packets,
-			flow.GetSrcAddr(),
-			flow.GetDstAddr(),
+			ipv4BytesToUint32(srcAddr[:4]),
+			ipv4BytesToUint32(dstAddr[:4]),
 			flow.GetSrcPort(),
 			flow.GetDstPort(),
 			flow.GetProto(),
-			flow.GetType(),
 			flow.GetSrcAS(),
 			flow.GetDstAS(),
 		)
@@ -101,8 +109,8 @@ func (c *ClickhouseClient) insert(flows []*flowprotob.FlowMessage) error {
 func (c *ClickhouseClient) InitDb(ctx context.Context) error {
 	stm := fmt.Sprintf(`
 	CREATE TABLE IF NOT EXISTS %s.%s (
-	    time UInt32,
-	    Bytes UInt16,
+	    time UInt64,
+	    Bytes UInt64,
 	    Etype UInt32,
 	    Packets UInt64,
 	    SrcAddr UInt32,
@@ -112,9 +120,17 @@ func (c *ClickhouseClient) InitDb(ctx context.Context) error {
 	    Proto UInt32,
 	    SrcAs UInt32,
 	    DstAs UInt32
-	) ENGINE = MergeTree()
-	ORDER BY (time, SrcAddr, SrcPort, DstAddr, DstPort)
-	PARTITION BY DstAddr
-	SAMPLE BY SrcAddr`, c.dbName, c.tableName)
+	)
+	ENGINE = MergeTree
+	ORDER BY tuple()`,
+		c.dbName, c.tableName)
 	return c.conn.Exec(ctx, stm)
+}
+
+func ipv4BytesToUint32(b []byte) uint32 {
+	// TODO deal with this later, also work out ipv6
+	if len(b) != 4 {
+		return 0
+	}
+	return uint32(b[0])<<24 + uint32(b[1])<<16 + uint32(b[2])<<8 + uint32(b[3])
 }
