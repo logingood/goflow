@@ -3,6 +3,7 @@ package clickhouse_transport
 import (
 	"context"
 	"fmt"
+	"math/big"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	flowprotob "github.com/cloudflare/goflow/v3/pb"
@@ -76,27 +77,69 @@ func (c *ClickhouseClient) insert(flows []*flowprotob.FlowMessage) error {
 
 	log.Debug(fmt.Sprintf("about to process  %d", len(flows)))
 	for _, flow := range flows {
-		srcAddr := flow.GetSrcAddr()
-		dstAddr := flow.GetDstAddr()
-
-		if len(srcAddr) != 4 || len(dstAddr) != 4 {
-			// bad records, like CGNAT
-			log.Debug("strange flow", flow)
-			continue
-		}
 
 		batch.Append(
-			flow.TimeReceived,
-			flow.Bytes,
+			flow.GetTimeReceived(),
+			flow.GetSequenceNum(),
+			flow.GetSamplingRate(),
+			flow.GetFlowDirection(),
+			ip2Int(flow.GetSamplerAddress()),
+			flow.GetTimeFlowStart(),
+			flow.GetTimeFlowEnd(),
+			flow.GetBytes(),
+			flow.GetPackets(),
+			ip2Int(flow.GetSrcAddr()),
+			ip2Int(flow.GetDstAddr()),
 			flow.GetEtype(),
-			flow.Packets,
-			ipv4BytesToUint32(srcAddr[:4]),
-			ipv4BytesToUint32(dstAddr[:4]),
+			flow.GetProto(),
 			flow.GetSrcPort(),
 			flow.GetDstPort(),
-			flow.GetProto(),
+			flow.GetInIf(),
+			flow.GetOutIf(),
+			flow.GetSrcMac(),
+			flow.GetDstMac(),
+			flow.GetSrcVlan(),
+			flow.GetDstVlan(),
+			flow.GetVlanId(),
+			flow.GetIngressVrfID(),
+			flow.GetEgressVrfID(),
+			flow.GetIPTos(),
+			flow.GetForwardingStatus(),
+			flow.GetIPTTL(),
+			flow.GetTCPFlags(),
+			flow.GetIcmpType(),
+			flow.GetIcmpCode(),
+			flow.GetIPv6FlowLabel(),
+			flow.GetFragmentId(),
+			flow.GetFragmentOffset(),
+			flow.GetBiFlowDirection(),
 			flow.GetSrcAS(),
 			flow.GetDstAS(),
+			ip2Int(flow.GetNextHop()),
+			flow.GetNextHopAS(),
+			flow.GetSrcNet(),
+			flow.GetDstNet(),
+			flow.GetHasEncap(),
+			ip2Int(flow.GetSrcAddrEncap()),
+			ip2Int(flow.GetDstAddrEncap()),
+			flow.GetProtoEncap(),
+			flow.GetEtypeEncap(),
+			flow.GetIPTosEncap(),
+			flow.GetIPTTLEncap(),
+			flow.GetIPv6FlowLabelEncap(),
+			flow.GetFragmentIdEncap(),
+			flow.GetFragmentOffsetEncap(),
+			flow.GetHasMPLS(),
+			flow.GetMPLSCount(),
+			flow.GetMPLS1TTL(),
+			flow.GetMPLS1Label(),
+			flow.GetMPLS2TTL(),
+			flow.GetMPLS2Label(),
+			flow.GetMPLS3TTL(),
+			flow.GetMPLS3Label(),
+			flow.GetMPLSLastTTL(),
+			flow.GetMPLSLastLabel(),
+			flow.GetHasPPP(),
 		)
 	}
 	if err := batch.Send(); err != nil {
@@ -110,16 +153,66 @@ func (c *ClickhouseClient) InitDb(ctx context.Context) error {
 	stm := fmt.Sprintf(`
 	CREATE TABLE IF NOT EXISTS %s.%s (
 	    time UInt64,
-	    Bytes UInt64,
-	    Etype UInt32,
-	    Packets UInt64,
-	    SrcAddr UInt32,
-	    DstAddr UInt32,
-	    SrcPort UInt32,
-	    DstPort UInt32,
-	    Proto UInt32,
-	    SrcAs UInt32,
-	    DstAs UInt32
+			SequenceNum UInt32,
+			SamplingRate UInt64,
+			FlowDirection UInt32,
+			Router UInt128,
+			TimeFlowStart UInt64,
+			TimeFlowEnd UInt64,
+			Bytes UInt64,
+			Packets UInt64,
+			SrcAddr UInt128,
+			DstAddr UInt128,
+			Etype UInt32,
+			Proto UInt32,
+			SrcPort UInt32,
+			DstPort UInt32,
+			InIf UInt32,
+			OutIf UInt32,
+			SrcMac UInt64,
+			DstMac UInt64,
+			SrcVlan UInt32,
+			DstVlan UInt32,
+			VlanId UInt32,
+			IngressVrfID UInt32,
+			EgressVrfID UInt32,
+			IPTos UInt32,
+			ForwardingStatus UInt32,
+			IPTTL UInt32,
+			TCPFlags UInt32,
+			IcmpType UInt32,
+			IcmpCode UInt32,
+			IPv6FlowLabel UInt32,
+			FragmentId UInt32,
+			FragmentOffset UInt32,
+			BiFlowDirection UInt32,
+			SrcAS UInt32,
+			DstAS UInt32,
+			NextHop UInt128,
+			NextHopAS UInt32,
+			SrcNet UInt32,
+			DstNet UInt32,
+			HasEncap Bool,
+			SrcAddrEncap UInt128,
+			DstAddrEncap UInt128,
+			ProtoEncap UInt32,
+			EtypeEncap UInt32,
+			IPTosEncap UInt32,
+			IPTTLEncap UInt32,
+			IPv6FlowLabelEncap UInt32,
+			FragmentIdEncap UInt32,
+			FragmentOffsetEncap UInt32,
+			HasMPLS Bool,
+			MPLSCount UInt32,
+			MPLS1TTL UInt32,
+			MPLS1Label UInt32,
+			MPLS2TTL UInt32,
+			MPLS2Label UInt32,
+			MPLS3TTL UInt32,
+			MPLS3Label UInt32,
+			MPLSLastTTL UInt32,
+			MPLSLastLabel UInt32,
+			HasPPP Bool
 	)
 	ENGINE = MergeTree
 	ORDER BY tuple()`,
@@ -127,10 +220,8 @@ func (c *ClickhouseClient) InitDb(ctx context.Context) error {
 	return c.conn.Exec(ctx, stm)
 }
 
-func ipv4BytesToUint32(b []byte) uint32 {
-	// TODO deal with this later, also work out ipv6
-	if len(b) != 4 {
-		return 0
-	}
-	return uint32(b[0])<<24 + uint32(b[1])<<16 + uint32(b[2])<<8 + uint32(b[3])
+func ip2Int(b []byte) *big.Int {
+	i := big.NewInt(0)
+	i.SetBytes(b)
+	return i
 }
