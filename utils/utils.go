@@ -17,7 +17,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-const defaultFields = "Type,TimeReceived,SequenceNum,SamplingRate,SamplerAddress,TimeFlowStart,TimeFlowEnd,Bytes,Packets,SrcAddr,DstAddr,Etype,Proto,SrcPort,DstPort,InIf,OutIf,SrcMac,DstMac,SrcVlan,DstVlan,VlanId,IngressVrfID,EgressVrfID,IPTos,ForwardingStatus,IPTTL,TCPFlags,IcmpType,IcmpCode,IPv6FlowLabel,FragmentId,FragmentOffset,BiFlowDirection,SrcAS,DstAS,NextHop,NextHopAS,SrcNet,DstNet,HasEncap,SrcAddrEncap,DstAddrEncap,ProtoEncap,EtypeEncap,IPTosEncap,IPTTLEncap,IPv6FlowLabelEncap,FragmentIdEncap,FragmentOffsetEncap,HasMPLS,MPLSCount,MPLS1TTL,MPLS1Label,MPLS2TTL,MPLS2Label,MPLS3TTL,MPLS3Label,MPLSLastTTL,MPLSLastLabel,HasPPP,PPPAddressControl"
+const defaultFields = "Type,TimeReceived,SequenceNum,SamplingRate,SamplerAddress,TimeFlowStart,TimeFlowEnd,Bytes,Packets,SrcAddr,DstAddr,Etype,Proto,SrcPort,DstPort,InIf,OutIf,SrcMac,DstMac,SrcVlan,DstVlan,VlanId,IngressVrfID,EgressVrfID,IPTos,ForwardingStatus,IPTTL,TCPFlags,IcmpType,IcmpCode,IPv6FlowLabel,FragmentId,FragmentOffset,BiFlowDirection,SrcAS,DstAS,NextHop,NextHopAS,SrcNet,DstNet,HasEncap,SrcAddrEncap,DstAddrEncap,ProtoEncap,EtypeEncap,IPTosEncap,IPTTLEncap,IPv6FlowLabelEncap,FragmentIdEncap,FragmentOffsetEncap,HasMPLS,MPLSCount,MPLS1TTL,MPLS1Label,MPLS2TTL,MPLS2Label,MPLS3TTL,MPLS3Label,MPLSLastTTL,MPLSLastLabel,HasPPP,PPPAddressControl,PostNATSourceIPv4Address,PostNATDestinationIPv4Address,PostNAPTSourceTransportPort,PostNAPTDestinationTransportPort,NatEvent,NatOriginatingAddressRealm"
 
 var (
 	MessageFields = flag.String("message.fields", defaultFields, "The list of fields to include in flow messages")
@@ -229,6 +229,18 @@ func flowMessageFiltered(fmsg *flowmessage.FlowMessage) []flowMessageItem {
 			message = append(message, flowMessageItem{"HasPPP", fmt.Sprintf("%v", fmsg.HasPPP)})
 		case "PPPAddressControl":
 			message = append(message, flowMessageItem{"PPPAddressControl", fmt.Sprintf("%v", fmsg.PPPAddressControl)})
+		case "PostNATSourceIPv4Address":
+			message = append(message, flowMessageItem{"PostNATSourceIPv4Address", net.IP(fmsg.PostNATSourceIPv4Address).String()})
+		case "PostNATDestinationIPv4Address":
+			message = append(message, flowMessageItem{"PostNATDestinationIPv4Address", net.IP(fmsg.PostNATDestinationIPv4Address).String()})
+		case "PostNAPTSourceTransportPort":
+			message = append(message, flowMessageItem{"PostNAPTSourceTransportPort", fmt.Sprintf("%v", fmsg.PostNAPTSourceTransportPort)})
+		case "PostNAPTDestinationTransportPort":
+			message = append(message, flowMessageItem{"PostNAPTDestinationTransportPort", fmt.Sprintf("%v", fmsg.PostNAPTDestinationTransportPort)})
+		case "NatEvent":
+			message = append(message, flowMessageItem{"NatEvent", fmt.Sprintf("%v", fmsg.NatEvent)})
+		case "NatOriginatingAddressRealm":
+			message = append(message, flowMessageItem{"NatOriginatingAddressRealm", fmt.Sprintf("%v", fmsg.NatOriginatingAddressRealm)})
 		}
 	}
 

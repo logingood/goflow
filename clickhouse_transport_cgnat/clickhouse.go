@@ -1,4 +1,6 @@
-package clickhouse_transport
+package clickhouse_transport_cgnat
+
+/* cgnat clickhouse transport */
 
 import (
 	"context"
@@ -98,66 +100,38 @@ func (c *ClickhouseClient) insert(flows []*flowprotob.FlowMessage) error {
 			router = append(router, 0)
 		}
 
+		postNatSrc := flow.GetPostNATSourceIPv4Address()
+		if len(postNatSrc) == 0 {
+			postNatSrc = []byte{0, 0, 0, 0}
+		}
+
+		postNatDst := flow.GetPostNATDestinationIPv4Address()
+		if len(postNatDst) == 0 {
+			postNatDst = []byte{0, 0, 0, 0}
+		}
+
+		natEvent := string(flow.GetNatEvent())
+		natRealm := string(flow.GetNatOriginatingAddressRealm())
+
 		batch.Append(
 			flow.GetTimeReceived(),
 			flow.GetSequenceNum(),
-			flow.GetSamplingRate(),
 			flow.GetFlowDirection(),
 			router,
-			flow.GetTimeFlowStart(),
-			flow.GetTimeFlowEnd(),
-			flow.GetBytes(),
-			flow.GetPackets(),
 			srcAddr,
 			dstAddr,
-			flow.GetEtype(),
 			flow.GetProto(),
 			flow.GetSrcPort(),
 			flow.GetDstPort(),
-			flow.GetInIf(),
-			flow.GetOutIf(),
-			flow.GetSrcMac(),
-			flow.GetDstMac(),
-			flow.GetSrcVlan(),
-			flow.GetDstVlan(),
-			flow.GetVlanId(),
-			flow.GetIngressVrfID(),
-			flow.GetEgressVrfID(),
-			flow.GetIPTos(),
-			flow.GetForwardingStatus(),
-			flow.GetIPTTL(),
 			flow.GetTCPFlags(),
 			flow.GetIcmpType(),
 			flow.GetIcmpCode(),
-			flow.GetIPv6FlowLabel(),
-			flow.GetFragmentId(),
-			flow.GetFragmentOffset(),
-			flow.GetBiFlowDirection(),
-			flow.GetSrcAS(),
-			flow.GetDstAS(),
-			nextHop,
-			flow.GetNextHopAS(),
-			flow.GetSrcNet(),
-			flow.GetDstNet(),
-			flow.GetHasEncap(),
-			flow.GetProtoEncap(),
-			flow.GetEtypeEncap(),
-			flow.GetIPTosEncap(),
-			flow.GetIPTTLEncap(),
-			flow.GetIPv6FlowLabelEncap(),
-			flow.GetFragmentIdEncap(),
-			flow.GetFragmentOffsetEncap(),
-			flow.GetHasMPLS(),
-			flow.GetMPLSCount(),
-			flow.GetMPLS1TTL(),
-			flow.GetMPLS1Label(),
-			flow.GetMPLS2TTL(),
-			flow.GetMPLS2Label(),
-			flow.GetMPLS3TTL(),
-			flow.GetMPLS3Label(),
-			flow.GetMPLSLastTTL(),
-			flow.GetMPLSLastLabel(),
-			flow.GetHasPPP(),
+			postNatSrc,
+			postNatDst,
+			flow.GetPostNAPTSourceTransportPort(),
+			flow.GetPostNAPTDestinationTransportPort(),
+			natEvent,
+			natRealm,
 		)
 	}
 	if err := batch.Send(); err != nil {
@@ -177,63 +151,22 @@ func (c *ClickhouseClient) InitDb(ctx context.Context) error {
 	CREATE TABLE IF NOT EXISTS %s.%s (
 		time UInt64,
 		SequenceNum UInt32,
-		SamplingRate UInt64,
 		FlowDirection UInt32,
 		Router IPv6,
-		TimeFlowStart UInt64,
-		TimeFlowEnd UInt64,
-		Bytes UInt64,
-		Packets UInt64,
 		SrcAddr IPv6,
 		DstAddr IPv6,
-		Etype UInt32,
 		Proto UInt32,
 		SrcPort UInt32,
 		DstPort UInt32,
-		InIf UInt32,
-		OutIf UInt32,
-		SrcMac UInt64,
-		DstMac UInt64,
-		SrcVlan UInt32,
-		DstVlan UInt32,
-		VlanId UInt32,
-		IngressVrfID UInt32,
-		EgressVrfID UInt32,
-		IPTos UInt32,
-		ForwardingStatus UInt32,
-		IPTTL UInt32,
 		TCPFlags UInt32,
 		IcmpType UInt32,
 		IcmpCode UInt32,
-		IPv6FlowLabel UInt32,
-		FragmentId UInt32,
-		FragmentOffset UInt32,
-		BiFlowDirection UInt32,
-		SrcAS UInt32,
-		DstAS UInt32,
-		NextHop IPv6,
-		NextHopAS UInt32,
-		SrcNet UInt32,
-		DstNet UInt32,
-		HasEncap Bool,
-		ProtoEncap UInt32,
-		EtypeEncap UInt32,
-		IPTosEncap UInt32,
-		IPTTLEncap UInt32,
-		IPv6FlowLabelEncap UInt32,
-		FragmentIdEncap UInt32,
-		FragmentOffsetEncap UInt32,
-		HasMPLS Bool,
-		MPLSCount UInt32,
-		MPLS1TTL UInt32,
-		MPLS1Label UInt32,
-		MPLS2TTL UInt32,
-		MPLS2Label UInt32,
-		MPLS3TTL UInt32,
-		MPLS3Label UInt32,
-		MPLSLastTTL UInt32,
-		MPLSLastLabel UInt32,
-		HasPPP Bool
+		postNATSourceIPv4Address IPv6,
+		postNATDestinationIPv4Address IPv6,
+		postNAPTSourceTransportPort UInt32,
+		postNAPTDestinationTransportPort UInt32,
+		natEvent VARCHAR(255),
+		natOriginatingAddressRealm VARCHAR(255)
 	)
 	ENGINE = MergeTree
 	ORDER BY tuple()`,

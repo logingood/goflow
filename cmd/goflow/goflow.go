@@ -13,6 +13,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis"
 	"github.com/cloudflare/goflow/v3/clickhouse_transport"
+	"github.com/cloudflare/goflow/v3/clickhouse_transport_cgnat"
 	"github.com/cloudflare/goflow/v3/kinesis_transport"
 	"github.com/cloudflare/goflow/v3/transport"
 	"github.com/cloudflare/goflow/v3/utils"
@@ -48,6 +49,7 @@ var (
 	EnableKafka      = flag.Bool("kafka", false, "Enable Kafka")
 	EnableKinesis    = flag.Bool("kinesis", false, "Enable Kinesis")
 	EnableClickhouse = flag.Bool("clickhouse", true, "Enable Clickhouse")
+	EnableCGNAT      = flag.Bool("cgnat", false, "Enable CGNAT")
 	FixedLength      = flag.Bool("proto.fixedlen", false, "Enable fixed length protobuf")
 	MetricsAddr      = flag.String("metrics.addr", ":8080", "Metrics address")
 	MetricsPath      = flag.String("metrics.path", "/metrics", "Metrics path")
@@ -134,7 +136,6 @@ func main() {
 		sNF.Transport = kinesiClient
 	} else if *EnableClickhouse {
 		log.Info("clickhouse enabled")
-
 		dbName := os.Getenv("CLICKHOUSE_DB")
 		tableName := os.Getenv("CLICKHOUSE_TABLENAME")
 
@@ -154,16 +155,29 @@ func main() {
 			log.Fatal(err)
 		}
 
-		clickHouseClient := clickhouse_transport.New(conn, 10001, dbName, tableName)
-		if err := clickHouseClient.InitDb(ctx); err != nil {
-			log.Fatal(err)
+		if *EnableCGNAT {
+			clickHouseClient := clickhouse_transport_cgnat.New(conn, 10001, dbName, tableName)
+			if err := clickHouseClient.InitDb(ctx); err != nil {
+				log.Fatal(err)
+			}
+			log.Info("starting CGNAT queue")
+			clickHouseClient.StartQueue(gctx, g)
+			log.Info("CGNAT queue started")
+			sSFlow.Transport = clickHouseClient
+			sNFL.Transport = clickHouseClient
+			sNF.Transport = clickHouseClient
+		} else {
+			clickHouseClient := clickhouse_transport.New(conn, 10001, dbName, tableName)
+			if err := clickHouseClient.InitDb(ctx); err != nil {
+				log.Fatal(err)
+			}
+			log.Info("starting Netflow queue")
+			clickHouseClient.StartQueue(gctx, g)
+			log.Info("Netflow queue started")
+			sSFlow.Transport = clickHouseClient
+			sNFL.Transport = clickHouseClient
+			sNF.Transport = clickHouseClient
 		}
-		log.Info("starting queue")
-		clickHouseClient.StartQueue(gctx, g)
-		log.Info("queue started")
-		sSFlow.Transport = clickHouseClient
-		sNFL.Transport = clickHouseClient
-		sNF.Transport = clickHouseClient
 	}
 
 	wg := &sync.WaitGroup{}

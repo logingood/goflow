@@ -251,6 +251,20 @@ func ConvertNetFlowDataSet(version uint16, baseTime uint32, uptime uint32, recor
 		case netflow.IPFIX_FIELD_icmpCodeIPv6:
 			DecodeUNumber(v, &(flowMessage.IcmpCode))
 
+		// CGNAT
+		case netflow.IPFIX_FIELD_postNATSourceIPv4Address:
+			flowMessage.PostNATSourceIPv4Address = v
+		case netflow.IPFIX_FIELD_postNATDestinationIPv4Address:
+			flowMessage.PostNATDestinationIPv4Address = v
+		case netflow.IPFIX_FIELD_postNAPTSourceTransportPort:
+			DecodeUNumber(v, &(flowMessage.PostNAPTSourceTransportPort))
+		case netflow.IPFIX_FIELD_postNAPTDestinationTransportPort:
+			DecodeUNumber(v, &(flowMessage.PostNAPTDestinationTransportPort))
+		case netflow.IPFIX_FIELD_natEvent:
+			flowMessage.NatEvent = v
+		case netflow.IPFIX_FIELD_natOriginatingAddressRealm:
+			flowMessage.NatOriginatingAddressRealm = v
+
 		// Mac
 		case netflow.NFV9_FIELD_IN_SRC_MAC:
 			DecodeUNumber(v, &(flowMessage.SrcMac))

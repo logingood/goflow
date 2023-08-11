@@ -7,6 +7,15 @@
 
   Ordering by time or `tuple()` works great with merge tree. Please refer to official [clickhouse docs](https://clickhouse.com/blog/working-with-time-series-data-and-functions-ClickHouse#date-and-time-types-available-in-clickhouse).
 
+* Added clickhouse_cgnat transport and CGNAT IPFIX Fields support. The most
+  interesting attributes are post nat source IP and port. Clickhouse schema for
+  CGNAT is simplified and consits of the CGNAT logging data, to identify a
+  pre-CGNAT ip address.
+
+```
+    * bytes IPFIX_FIELD_postNATSourceIPv4Address  = 225;
+    * uint32 postNAPTSourceTransportPort          = 227;
+```
 
 * IPv4 vs IPv6. We decided to store all ip address types as IPv6 in Clickhouse, it makes []byte conversions
 easier with [Clickhouse's type coverter](https://github.com/ClickHouse/clickhouse-go/blob/main/lib/column/ipv6.go).

@@ -3,6 +3,7 @@ package flowprotob;
 
 option java_package = "com.cloudflare.net.flowagg";
 option java_outer_classname = "FlowMessagePb";
+option go_package = "github.com/logingood/goflow";
 
 message FlowMessage {
 
@@ -120,4 +121,11 @@ message FlowMessage {
   // Custom fields: start after ID 1000:
   // uint32 MyCustomField = 1000;
 
+  // cgnat
+  bytes postNATSourceIPv4Address          = 225;
+  bytes postNATDestinationIPv4Address     = 226;
+  uint32 postNAPTSourceTransportPort      = 227;
+  uint32 postNAPTDestinationTransportPort = 228;
+  bytes natOriginatingAddressRealm        = 229;
+  bytes natEvent                          = 230;
 }

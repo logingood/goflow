@@ -14,4 +14,5 @@ require (
 	github.com/sirupsen/logrus v1.8.1
 	github.com/stretchr/testify v1.8.2
 	golang.org/x/sync v0.0.0-20220923202941-7f9b1623fab7
+	google.golang.org/protobuf v1.28.0
 )
