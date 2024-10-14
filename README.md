@@ -17,6 +17,37 @@
     * uint32 postNAPTSourceTransportPort          = 227;
 ```
 
+** A note about CGNAT and clickhouse. Make sure you create table order and partitioned by time it'll make SQL much faster.***
+
+```sql
+CREATE TABLE default.netflow_partitioned
+(
+    `time` UInt64,
+    `SequenceNum` UInt32,
+    `FlowDirection` UInt32,
+    `Router` IPv6,
+    `SrcAddr` IPv6,
+    `DstAddr` IPv6,
+    `Proto` UInt32,
+    `SrcPort` UInt32,
+    `DstPort` UInt32,
+    `TCPFlags` UInt32,
+    `IcmpType` UInt32,
+    `IcmpCode` UInt32,
+    `postNATSourceIPv4Address` IPv6,
+    `postNATDestinationIPv4Address` IPv6,
+    `postNAPTSourceTransportPort` UInt32,
+    `postNAPTDestinationTransportPort` UInt32,
+    `natEvent` String,
+    `natOriginatingAddressRealm` String
+)
+ENGINE = MergeTree
+PARTITION BY toYYYYMMDD(time)  -- Partitioning by day
+ORDER BY (time, postNATSourceIPv4Address)  -- Sorted by time and postNATSourceIPv4Address for efficient querying
+SETTINGS index_granularity = 8192;
+```
+
+
 * IPv4 vs IPv6. We decided to store all ip address types as IPv6 in Clickhouse, it makes []byte conversions
 easier with [Clickhouse's type coverter](https://github.com/ClickHouse/clickhouse-go/blob/main/lib/column/ipv6.go).
 The address will look like 'ffff::192.168.0.1', however it is possible to get ipv4 string with the following
@@ -88,8 +119,10 @@ The fork will crate a schema for you, ClickHouseClient has InitDb method.
         )
 
 	)
-	ENGINE = MergeTree
-	ORDER BY tuple()
+ENGINE = MergeTree
+PARTITION BY toYYYYMMDD(time)  -- Partitioning by day
+ORDER BY (time, SrcAddr)  -- Sorted by time and SrcAddr for efficient querying
+SETTINGS index_granularity = 8192;
 ```
 
 Running the fork for clickhouse (enabled by default):
