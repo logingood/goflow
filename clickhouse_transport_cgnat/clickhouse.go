@@ -5,10 +5,12 @@ package clickhouse_transport_cgnat
 import (
 	"context"
 	"fmt"
+	"net"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	flowprotob "github.com/cloudflare/goflow/v3/pb"
 	log "github.com/sirupsen/logrus"
+	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -21,11 +23,19 @@ type ClickhouseClient struct {
 	tableName string
 	conn      driver.Conn
 	queue     chan *flowprotob.FlowMessage
+	logger    *zap.Logger
 }
 
 func New(conn driver.Conn, queueSize int, dbName, tableName string) *ClickhouseClient {
+	logger, err := zap.NewProduction() // NewProduction outputs JSON by default
+	if err != nil {
+		panic(err)
+	}
+	defer logger.Sync() // Flushes buffer, if any
+
 	return &ClickhouseClient{
 		conn:      conn,
+		logger:    logger,
 		queue:     make(chan *flowprotob.FlowMessage, queueSize),
 		dbName:    dbName,
 		tableName: tableName,
@@ -34,7 +44,22 @@ func New(conn driver.Conn, queueSize int, dbName, tableName string) *ClickhouseC
 
 func (c *ClickhouseClient) Publish(flows []*flowprotob.FlowMessage) {
 	for idx, flow := range flows {
-		log.Debug("publish flow", idx, flow.SequenceNum)
+
+		c.logger.Info("publishing flows",
+			zap.Any("timestampRcvd", flow.TimeReceived),
+			zap.Any("SamplerAddress", net.IP(flow.SamplerAddress).String()),
+			zap.Any("SrcAddr", net.IP(flow.SrcAddr).String()),
+			zap.Any("DstAddr", net.IP(flow.DstAddr).String()),
+			zap.Any("postNATSourceIPv4Address", net.IP(flow.PostNATSourceIPv4Address).String()),
+			zap.Any("postNATDestinationIPv4Address", net.IP(flow.PostNATDestinationIPv4Address).String()),
+			zap.Any("SrcPort", flow.SrcPort),
+			zap.Any("DstPort", flow.DstPort),
+			zap.Any("postNAPTSourceTransportPort", flow.PostNAPTSourceTransportPort),
+			zap.Any("postNAPTDestinationTransportPort", flow.PostNAPTDestinationTransportPort),
+			zap.Any("SrcAddr", net.IP(flow.SrcAddr).String()),
+			zap.Any("idex", idx),
+		)
+
 		c.enqueue(flow)
 	}
 	return
